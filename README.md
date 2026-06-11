@@ -67,54 +67,6 @@ The pipeline inside [Galaxy_Analysis.ipynb](file:///f:/Galaxy_Analysis/Galaxy_An
 
 ---
 
-## 🔍 Key Insights & Code Issues Identified
-
-During code review and execution logs analysis, a few critical issues and potential improvements were identified:
-
-### ⚠️ Critical Bug: Undefined `thresh` Variable in Source Detection
-In **Cell 5**, the code runs source detection:
-```python
-finder = SourceFinder(npixels=NPIX_MIN, connectivity=8, progress_bar=False)
-segm = finder(img_sub, thresh)  # <--- thresh is not defined!
-```
-**Issue**: The variable `thresh` is not defined anywhere in the cell or the notebook. The cell only ran successfully in the original notebook due to interactive state memory (i.e. `thresh` was defined in a previously deleted cell).
-**Fix**: Call the imported `detect_threshold` function before running the finder:
-```python
-# Insert before running finder:
-thresh = detect_threshold(img_sub, nsigma=NSIGMA_DET)
-segm = finder(img_sub, thresh)
-```
-
-### ℹ️ Band Naming Mismatch in RGB Stacking
-In **Cell 4**, the code loads the `r, g, i` bands:
-```python
-if all(os.path.exists(IMG_PATHS[b]) for b in ['r','g','i']):
-    ...
-    u_min, u_max = interval.get_limits(imgs['r'])
-    g_min, g_max = interval.get_limits(imgs['g'])
-    r_min, r_max = interval.get_limits(imgs['i'])
-```
-**Observation**: It maps `r` (red) to $U$-channel, `g` (green) to $G$-channel, and `i` (infrared) to $R$-channel, but names variables as `u_scaled, g_scaled, r_scaled`. This results in an $(i, g, r)$ band composite mapped to RGB, which is a standard false-color astronomical representation, but the variable names and title text are mismatched and suggest $(u, g, r)$.
-
-### ℹ️ Color-Magnitude Diagram Apparent Magnitudes Are `nan`
-In **Cell 0**, the function `read_band_mag` is written as:
-```python
-def read_band_mag(path):
-    if not os.path.exists(path): return np.nan
-    with fits.open(path) as hdul:
-        hdr = hdul[0].header
-        return np.nan # <--- Always returns nan
-```
-**Observation**: Because it always returns `np.nan`, the absolute magnitudes ($M_g$, $M_r$) and the color index ($g - r$) are unavailable, resulting in empty Color-Magnitude Diagram plots. Apparent magnitudes should be read from the FITS image headers or the master `photometry_result_with_spectra.csv` catalog file.
-
-### ℹ️ Unphysical Balmer Decrement Extinctions
-*   **Observation**: For certain galaxies (e.g. `galaxy_2`), the measured Balmer decrement $F_{\text{H}\alpha}/F_{\text{H}\beta}$ yields negative $E(B-V)$ values (e.g. $-3.431$). A negative color excess is unphysical (representing dust "emission" instead of absorption) and occurs due to observational errors or calibration issues in weak lines.
-*   **Fix**: Clip the calculated $E(B-V)$ at 0:
-    ```python
-    EBV = max(0.0, ebv_from_balmer(Ha_flux, Hb_flux))
-    ```
-
----
 
 ## 🚀 How to Run the Project
 
